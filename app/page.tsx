@@ -54,6 +54,8 @@ export default function Home() {
     };
   }>(`/api/attendees/list?page=${currentPage}&limit=10`, fetcher, {
     revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    revalidateIfStale: false,
   });
 
   const tableAttendees = tableData?.attendees || [];
@@ -601,7 +603,9 @@ export default function Home() {
         {/* Attendees Table */}
         <div className="mt-8 rounded-3xl bg-white p-6 shadow-2xl md:p-10">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-3xl font-bold text-slate-900">All Attendees</h2>
+            <h2 className="text-3xl font-bold text-slate-900">
+              All Registered Attendees
+            </h2>
             <div className="text-sm text-slate-600">
               Total: <span className="font-semibold">{totalAttendees}</span>
             </div>
@@ -635,7 +639,9 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {tableAttendees.length === 0 ? (
+                    {tableData &&
+                    Array.isArray(tableData.attendees) &&
+                    tableData.attendees.length === 0 ? (
                       <tr>
                         <td
                           colSpan={5}
@@ -645,7 +651,7 @@ export default function Home() {
                           started.
                         </td>
                       </tr>
-                    ) : (
+                    ) : tableAttendees.length > 0 ? (
                       tableAttendees.map((attendee) => (
                         <tr
                           key={attendee.id}
@@ -714,7 +720,7 @@ export default function Home() {
                           </td>
                         </tr>
                       ))
-                    )}
+                    ) : null}
                   </tbody>
                 </table>
               </div>
