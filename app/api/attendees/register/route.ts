@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
-    const { firstName, lastName, phone } = data
+    const { firstName, lastName, phone, email, occupation, expectation, checkIn } = data
 
     if (!firstName || !lastName || !phone) {
       return NextResponse.json(
@@ -18,18 +18,30 @@ export async function POST(request: NextRequest) {
       .from('attendees')
       .select('*')
       .eq('phone', phone)
-      .single()
+      .maybeSingle()
+
+    // Determine if we should check in (default to true for backward compatibility, false for online registration)
+    const shouldCheckIn = checkIn !== false
 
     if (existing) {
-      // Update existing attendee and check them in
+      // Update existing attendee
+      const updateData: any = {
+        first_name: firstName,
+        last_name: lastName,
+        email: email || existing.email,
+        occupation: occupation || existing.occupation,
+        expectation: expectation || existing.expectation,
+      }
+
+      // Only update check-in status if explicitly requested
+      if (shouldCheckIn) {
+        updateData.checked_in = true
+        updateData.checked_in_at = new Date().toISOString()
+      }
+
       const { data: attendee, error } = await supabase
         .from('attendees')
-        .update({
-          first_name: firstName,
-          last_name: lastName,
-          checked_in: true,
-          checked_in_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', existing.id)
         .select()
         .single()
@@ -45,16 +57,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ attendee, isNew: false }, { status: 200 })
     }
 
-    // Create new attendee and check them in
+    // Create new attendee
+    const insertData: any = {
+      first_name: firstName,
+      last_name: lastName,
+      phone,
+      email: email || null,
+      occupation: occupation || null,
+      expectation: expectation || null,
+    }
+
+    // Only check in if explicitly requested
+    if (shouldCheckIn) {
+      insertData.checked_in = true
+      insertData.checked_in_at = new Date().toISOString()
+    }
+
     const { data: attendee, error } = await supabase
       .from('attendees')
-      .insert({
-        first_name: firstName,
-        last_name: lastName,
-        phone,
-        checked_in: true,
-        checked_in_at: new Date().toISOString(),
-      })
+      .insert(insertData)
       .select()
       .single()
 

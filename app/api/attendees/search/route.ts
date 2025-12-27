@@ -11,21 +11,53 @@ export async function GET(request: NextRequest) {
     }
 
     const searchPattern = `%${query}%`
+    const queryParts = query.split(/\s+/).filter(part => part.length > 0)
+    const isFullName = queryParts.length > 1
 
-    // Search each field separately and combine results (more reliable than .or())
-    const [firstNameResults, lastNameResults, phoneResults] = await Promise.all([
+    // Search queries
+    const searchQueries: Promise<any>[] = [
+      // Search first name
       supabase.from('attendees').select('*').ilike('first_name', searchPattern).limit(10),
+      // Search last name
       supabase.from('attendees').select('*').ilike('last_name', searchPattern).limit(10),
+      // Search phone
       supabase.from('attendees').select('*').ilike('phone', searchPattern).limit(10),
-    ])
+    ]
+
+    // If query has multiple words, also search for first name + last name combination
+    if (isFullName) {
+      const firstNamePattern = `%${queryParts[0]}%`
+      const lastNamePattern = `%${queryParts.slice(1).join(' ')}%`
+      
+      // Search for first word in first_name AND remaining words in last_name
+      searchQueries.push(
+        supabase
+          .from('attendees')
+          .select('*')
+          .ilike('first_name', firstNamePattern)
+          .ilike('last_name', lastNamePattern)
+          .limit(10)
+      )
+
+      // Also try reverse (in case they typed "Last First")
+      if (queryParts.length === 2) {
+        searchQueries.push(
+          supabase
+            .from('attendees')
+            .select('*')
+            .ilike('first_name', `%${queryParts[1]}%`)
+            .ilike('last_name', `%${queryParts[0]}%`)
+            .limit(10)
+        )
+      }
+    }
+
+    const results = await Promise.all(searchQueries)
 
     // Check for errors
-    if (firstNameResults.error || lastNameResults.error || phoneResults.error) {
-      console.error('Search errors:', {
-        firstName: firstNameResults.error,
-        lastName: lastNameResults.error,
-        phone: phoneResults.error,
-      })
+    const errors = results.filter(r => r.error)
+    if (errors.length > 0) {
+      console.error('Search errors:', errors.map(e => e.error))
       return NextResponse.json(
         { error: 'Failed to search attendees' },
         { status: 500 }
@@ -33,11 +65,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Combine and deduplicate results
-    const allResults = [
-      ...(firstNameResults.data || []),
-      ...(lastNameResults.data || []),
-      ...(phoneResults.data || []),
-    ]
+    const allResults = results.flatMap(result => result.data || [])
     
     const uniqueResults = Array.from(
       new Map(allResults.map(item => [item.id, item])).values()
