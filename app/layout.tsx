@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Event Check-In System",
-  description: "Premium tablet-optimized event registration and check-in system",
+  title: "Emerge Event Check-In",
+  description: "Emerge Event Check-In",
 };
 
 export default function RootLayout({
